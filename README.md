@@ -33,11 +33,16 @@ See [`SPEC.md`](./SPEC.md) for the full design and rationale.
 ## Install (users)
 
 ### Via the Plugin & Content Manager (recommended)
-Once published to a PCM repository:
-1. KiCad → **Plugin and Content Manager**.
-2. Add the ProvenMetal repository (URL provided by your admin) if it isn't listed.
-3. Install **ProvenMetal Sourcing** and restart KiCad.
-4. Enable the IPC API: **Preferences → Plugins → “Enable KiCad API”** (KiCad 9+).
+1. KiCad → **Plugin and Content Manager → Manage… → +** and add this repository URL:
+   ```
+   https://raw.githubusercontent.com/proven-metal/provenmetal-kicad/main/pcm/repository.json
+   ```
+2. Back in the PCM, install **ProvenMetal Sourcing** and restart KiCad.
+3. Enable the IPC API: **Preferences → Plugins → “Enable KiCad API”** (KiCad 9+).
+
+Or **Install from File**: download the latest
+[release zip](https://github.com/proven-metal/provenmetal-kicad/releases/latest)
+and use PCM → **Install from File**.
 
 ### Manual install (internal/testing)
 Copy the `plugin/` directory into your KiCad IPC plugins folder:
