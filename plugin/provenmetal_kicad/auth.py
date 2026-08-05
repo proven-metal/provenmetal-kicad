@@ -53,27 +53,68 @@ def _pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 
+# Shown once we have credentials.
+_DONE_HTML = (
+    "<html><body style='font-family:sans-serif;padding:2rem'>"
+    "<h2>ProvenMetal</h2><p>You're signed in. You can close this tab and return "
+    "to KiCad.</p></body></html>"
+)
+# Supabase OAuth often returns the session in the URL fragment (#access_token=...),
+# which the server never sees. This page runs in the browser, reads the fragment,
+# and relays it to /store so the local server can capture it.
+_RELAY_HTML = (
+    "<html><body style='font-family:sans-serif;padding:2rem'>"
+    "<p>Completing sign-in...</p><script>"
+    "var h=window.location.hash?window.location.hash.substring(1):'';"
+    "if(h){window.location.replace('/store?'+h);}"
+    "else{document.body.innerHTML='<p>No sign-in data found. You can close this tab.</p>';}"
+    "</script></body></html>"
+)
+
+
 class _CallbackHandler(http.server.BaseHTTPRequestHandler):
-    # Populated on the server instance.
-    def do_GET(self):  # noqa: N802
-        parsed = urllib.parse.urlparse(self.path)
-        params = urllib.parse.parse_qs(parsed.query)
-        server = self.server  # type: ignore[attr-defined]
-        server.auth_result = {  # type: ignore[attr-defined]
-            "code": (params.get("code") or [None])[0],
-            "error": (params.get("error") or [None])[0],
-            "error_description": (params.get("error_description") or [None])[0],
-        }
-        body = (
-            b"<html><body style='font-family:sans-serif;padding:2rem'>"
-            b"<h2>ProvenMetal</h2><p>You're signed in. You can close this tab and "
-            b"return to KiCad.</p></body></html>"
-        )
+    def _respond(self, html: str) -> None:
+        body = html.encode("utf-8")
         self.send_response(200)
         self.send_header("content-type", "text/html; charset=utf-8")
         self.send_header("content-length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def do_GET(self):  # noqa: N802
+        parsed = urllib.parse.urlparse(self.path)
+        params = urllib.parse.parse_qs(parsed.query)
+        server = self.server  # type: ignore[attr-defined]
+
+        def first(key):
+            return (params.get(key) or [None])[0]
+
+        # Tokens relayed from the URL fragment (implicit flow).
+        if parsed.path == "/store":
+            server.auth_result = {  # type: ignore[attr-defined]
+                "code": None,
+                "access_token": first("access_token"),
+                "refresh_token": first("refresh_token"),
+                "expires_at": first("expires_at"),
+                "expires_in": first("expires_in"),
+                "error": first("error"),
+                "error_description": first("error_description"),
+            }
+            self._respond(_DONE_HTML)
+            return
+
+        # PKCE code or an error came back in the query.
+        if first("code") or first("error"):
+            server.auth_result = {  # type: ignore[attr-defined]
+                "code": first("code"),
+                "error": first("error"),
+                "error_description": first("error_description"),
+            }
+            self._respond(_DONE_HTML)
+            return
+
+        # No query params: the session may be in the fragment - relay it via JS.
+        self._respond(_RELAY_HTML)
 
     def log_message(self, *args):  # silence the default stderr logging
         return
@@ -239,9 +280,22 @@ class Authenticator:
 
         if result.get("error"):
             raise AuthError(f"Login failed: {result.get('error_description') or result['error']}")
+
+        # Implicit flow: tokens came back in the fragment and were relayed to /store.
+        if result.get("access_token"):
+            return self._normalize_and_store(
+                {
+                    "access_token": result.get("access_token"),
+                    "refresh_token": result.get("refresh_token", ""),
+                    "expires_at": result.get("expires_at"),
+                    "expires_in": result.get("expires_in") or 3600,
+                }
+            )
+
+        # PKCE flow: exchange the code for a session.
         code = result.get("code")
         if not code:
-            raise AuthError("Login did not return an authorization code.")
+            raise AuthError("Login did not return credentials. Please try again.")
         return self._exchange_code(config, code, verifier)
 
 
