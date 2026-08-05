@@ -1,67 +1,63 @@
 # ProvenMetal KiCad Plugin
 
-Push a KiCad project's BOM to **ProvenMetal Central**, source it against
-distributor stock and lead time, and flag any part that isn't **in stock (for the
-full build quantity) or sourceable within one week** — so long-lead parts surface
-before they bite.
-
-See [`SPEC.md`](./SPEC.md) for the full design and rationale.
-
----
+Sends a KiCad project's BOM to ProvenMetal Central, sources every part against
+distributor stock and lead time, and flags anything that is not in stock for the
+full build or sourceable within one week.
 
 ## How it works
 
-1. You click **Source with ProvenMetal** in the KiCad PCB editor toolbar.
-2. The plugin reads the schematic BOM via `kicad-cli sch export bom`.
-3. It signs you in to ProvenMetal (browser-based, one time) and pushes the BOM.
-4. The server sources every line and returns a per-part verdict:
-   - **pass** — in stock for the whole build, or sourceable within a week
-   - **needs review** — couldn't get a confident answer (left for manual sourcing)
-   - **fail** — not stocked anywhere, or out of stock with a long lead
+1. Click "Source with ProvenMetal" in KiCad.
+2. The plugin reads the BOM (from the schematic, or from a BOM CSV).
+3. It signs you in to ProvenMetal in your browser (once) and sends the BOM.
+4. The server sources each part and returns a result:
+   - pass: in stock for the whole build, or sourceable within a week.
+   - review: not enough data to decide (left for manual sourcing).
+   - fail: not stocked anywhere, or out of stock with a long lead.
 5. You get a summary in KiCad and the full report opens in your browser.
 
-> **KiCad version note.** Requires **KiCad 9+**; **KiCad 11** is the best
-> experience. On KiCad 11 the action appears in the **schematic editor** and can
-> optionally write results back into symbol fields over IPC. On KiCad 9/10 the
-> action appears in the **PCB editor** (their IPC API is PCB-only) and reads the
-> schematic through `kicad-cli`; writeback is unavailable there. BOM reading uses
-> `kicad-cli` on every version because it handles hierarchy, units, DNP and
-> grouping better than raw symbol reads.
+## KiCad versions
 
----
+Works on KiCad 9, 10, and 11.
 
-## Install (users)
+- On KiCad 11 the button is in the schematic editor and can write results back
+  into symbol fields.
+- On KiCad 9 and 10 the button is in the PCB editor (their API is PCB only).
 
-### Via the Plugin & Content Manager (recommended)
-1. KiCad → **Plugin and Content Manager → Manage… → +** and add this repository URL:
+The BOM is always read with `kicad-cli`, which handles hierarchy, units, DNP, and
+grouping.
+
+## Install
+
+### Plugin and Content Manager (recommended)
+
+1. In KiCad, open Plugin and Content Manager, click Manage, then add this URL:
    ```
    https://raw.githubusercontent.com/proven-metal/provenmetal-kicad/main/pcm/repository.json
    ```
-2. Back in the PCM, install **ProvenMetal Sourcing** and restart KiCad.
-3. Enable the IPC API: **Preferences → Plugins → “Enable KiCad API”** (KiCad 9+).
+2. Install "ProvenMetal Sourcing" and restart KiCad.
+3. Turn on the API in Preferences, Plugins, "Enable KiCad API".
 
-Or **Install from File**: download the latest
+You can also download the latest
 [release zip](https://github.com/proven-metal/provenmetal-kicad/releases/latest)
-and use PCM → **Install from File**.
+and use "Install from File".
 
-### Manual install (internal/testing)
-Copy the `plugin/` directory into your KiCad IPC plugins folder:
+### Manual install
+
+Copy the `plugin/` directory into your KiCad plugins folder:
+
 - macOS: `~/Documents/KiCad/<version>/plugins/provenmetal_kicad/`
 - Windows: `C:\Users\<you>\Documents\KiCad\<version>\plugins\provenmetal_kicad\`
 - Linux: `~/.local/share/KiCad/<version>/plugins/provenmetal_kicad/`
 
-KiCad creates a managed virtualenv and installs `requirements.txt` on first load.
-The action appears once that finishes.
+KiCad installs the dependencies on first load, then the button appears.
 
----
+## Settings
 
-## Configure
+The only required setting is the ProvenMetal Central URL, which defaults to
+`https://central.provenmetal.com`. Login details are fetched from the server.
 
-The only required setting is the ProvenMetal Central base URL (default
-`https://central.provenmetal.com`). Everything else (Supabase login details) is
-fetched from the server.
+Settings live in `settings.json` in the config directory:
 
-Settings live in `settings.json` in the plugin's config directory:
 - macOS: `~/Library/Application Support/provenmetal-kicad/`
 - Linux: `~/.config/provenmetal-kicad/`
 - Windows: `%APPDATA%\provenmetal-kicad\`
@@ -73,64 +69,73 @@ Settings live in `settings.json` in the plugin's config directory:
   "board_count": 10,
   "exclude_dnp": true,
   "kicad_cli_path": "",          // set only if auto-discovery fails
-  "field_map": {                 // only if your schematic uses non-standard names
+  "field_map": {                 // set if your schematic uses non-standard names
     "mpn": "Manufacturer Part Number",
     "lcsc": "LCSC Part #"
   },
-  "bom_csv": "",                 // source from a BOM CSV instead of the schematic
+  "bom_csv": "",                 // read from a BOM CSV instead of the schematic
   "writeback": false,            // KiCad 11+: write results into symbol fields
   "writeback_field_prefix": "PM"
 }
 ```
 
-Standard schematic field names are auto-detected: `MPN`, `Manufacturer`, `LCSC` /
-`LCSC Part #`, `Digikey`, `Mouser`. Digikey/Mouser part numbers are stored as
-metadata — sourcing matches on **MPN** or **LCSC** only.
+Common field names are detected automatically: MPN, Manufacturer, LCSC (or
+"LCSC Part #"), Digikey, Mouser. Sourcing matches on MPN or LCSC; Digikey and
+Mouser numbers are kept as extra data.
 
-### Sourcing from a BOM CSV
-If your MPNs live in a generated BOM rather than in symbol fields, point the plugin
-at the CSV (headers are auto-mapped by name; reference ranges like `C11-C18` are
-expanded):
+The link between a KiCad project and its ProvenMetal project is stored in a
+`myproject.provenmetal.json` file next to the schematic. It is safe to commit.
+
+## Sourcing without MPNs
+
+Most schematics do not carry manufacturer part numbers. That is fine. The plugin
+sends the value, footprint, and description, and the server sources passives
+(resistors, capacitors, inductors, LEDs, and similar) from those. For example
+"10 uF 16V X5R 0603" is enough to find a real, in-stock part.
+
+Parts that genuinely cannot be identified (no MPN, LCSC, or usable value) come
+back as "review", which is the signal that they need a part number.
+
+If your MPNs live in a generated BOM rather than in the schematic, point the
+plugin at that CSV. Headers are matched by name and reference ranges like
+`C11-C18` are expanded.
 
 ```bash
 python -m provenmetal_kicad --project /path/to/project --bom-csv bom.csv --board-count 10
 ```
 
-### Writeback (KiCad 11+)
+## Writeback (KiCad 11)
+
 Set `"writeback": true` to write `PM_Status`, `PM_Stock`, `PM_Lead_Days`,
-`PM_Supplier` and `PM_Checked` back onto each symbol after sourcing (matched by
-reference, in one undoable commit). No-op on KiCad 9/10.
+`PM_Supplier`, and `PM_Checked` onto each symbol after sourcing, matched by
+reference, in one undoable commit. This does nothing on KiCad 9 and 10.
 
-The link between your KiCad project and its ProvenMetal project is stored in a
-sidecar `myproject.provenmetal.json` next to the schematic (safe to commit).
-
----
-
-## Headless / CLI (dev & CI)
+## Command line
 
 ```bash
-python -m provenmetal_kicad --project /path/to/kicad/project --board-count 10
-python -m provenmetal_kicad --login          # sign in and exit
+python -m provenmetal_kicad --project /path/to/project --board-count 10
+python -m provenmetal_kicad --login
 python -m provenmetal_kicad --set-base-url https://central.example.com
 python -m provenmetal_kicad --logout
 ```
 
-Run from the `plugin/` directory (or with `plugin/` on `PYTHONPATH`).
+Run from the `plugin/` directory, or put `plugin/` on `PYTHONPATH`.
 
----
+## Server (ProvenMetal Central)
 
-## Server requirements (ProvenMetal Central)
+The plugin uses these endpoints on ProvenMetal Central:
 
-The plugin talks to the `/api/kicad/*` surface added to `provenmetal-central`:
+- `GET /api/kicad/config`: public config for the login flow.
+- `POST /api/kicad/bom`: send the BOM, source it, get the result (bearer token).
+- `GET /api/kicad/bom/[projectId]`: latest result for a project (bearer token).
 
-1. Apply migration `supabase/shared/0034_kicad_bom_revisions.sql` (by hand, per
-   that repo's convention).
-2. Set the usual env: `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_SUPABASE_URL`,
-   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, and — for live
-   sourcing — `SOURCING_SERVICE_URL` + `SOURCING_SERVICE_HMAC_KEY` (without them
-   the BOM is stored and returned with `status: "no-sourcing"`).
-3. In Supabase Auth → **URL Configuration → Redirect URLs**, allow the loopback
-   URLs the login flow uses:
+Setup on the server:
+
+1. Apply the migration `supabase/shared/0034_kicad_bom_revisions.sql`.
+2. Set `NEXT_PUBLIC_SITE_URL`, the Supabase variables, and (for live sourcing)
+   `SOURCING_SERVICE_URL` and `SOURCING_SERVICE_HMAC_KEY`. Without the sourcing
+   variables the BOM is stored and returned with status "no-sourcing".
+3. In Supabase Auth, add these redirect URLs for the plugin login:
    ```
    http://127.0.0.1:53682/callback
    http://127.0.0.1:53683/callback
@@ -138,43 +143,19 @@ The plugin talks to the `/api/kicad/*` surface added to `provenmetal-central`:
    http://127.0.0.1:8976/callback
    ```
 
-Endpoints:
-- `GET  /api/kicad/config` — public bootstrap (Supabase URL + anon key).
-- `POST /api/kicad/bom` — push + source + verdict (Bearer JWT).
-- `GET  /api/kicad/bom/[projectId]` — latest verdict (Bearer JWT).
+## Develop
 
----
-
-## Develop / test
+Run the tests (no KiCad or network needed):
 
 ```bash
 python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-Pure logic (`fields`, `grouping`, `verdict`) is tested without KiCad or network.
-`kicad_env`, `ui`, and `entry` are the only modules that touch KiCad/wx.
-
----
-
-## Package for PCM
-
-`metadata.json` is the PCM manifest. Build a package by zipping `plugin/` (with
-`metadata.json` at the archive root alongside it per the PCM layout) and validate
-with the kicad-python tooling:
+Build the PCM package and repository files:
 
 ```bash
-python -m kipy.packaging validate <path-to-package-or-zip>
+python build_pcm.py
 ```
 
-`download_url` / `download_sha256` / `download_size` / `install_size` in
-`metadata.json` are filled in at publish time by the repository build.
-
----
-
-## Limitations (MVP)
-
-- Display-only; no writeback into the schematic (KiCad 9/10 limitation).
-- The action is on the **PCB editor** toolbar (no schematic toolbar on 9/10).
-- Sourcing runs synchronously (up to ~60s) during the push; a progress line is
-  printed and, if wxPython is available, a results dialog is shown.
-- `kicad-cli` must be discoverable (auto-detected; override with `kicad_cli_path`).
+The pure logic (`fields`, `grouping`, `verdict`) has no KiCad or network
+dependency. Only `kicad_env`, `ui`, and `entry` touch KiCad.
