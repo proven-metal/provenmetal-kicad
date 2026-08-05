@@ -29,10 +29,9 @@ import webbrowser
 from pathlib import Path
 from typing import Dict, Optional
 
-import requests
-
 from .config import LOOPBACK_PORTS, Settings
 from .api import ServerConfig
+from ._http import request_json, HttpError
 
 
 class AuthError(Exception):
@@ -210,37 +209,38 @@ class Authenticator:
     def _refresh(self, config: ServerConfig, refresh_token: str) -> Optional[Dict]:
         url = f"{config.supabase_url}/auth/v1/token?grant_type=refresh_token"
         try:
-            resp = requests.post(
-                url,
-                headers={"apikey": config.supabase_anon_key, "content-type": "application/json"},
-                json={"refresh_token": refresh_token},
+            status, data, _ = request_json(
+                "POST", url,
+                headers={"apikey": config.supabase_anon_key},
+                body={"refresh_token": refresh_token},
                 timeout=30,
             )
-        except requests.RequestException:
+        except HttpError:
             return None
-        if resp.status_code != 200:
+        if status != 200 or not isinstance(data, dict):
             return None
         try:
-            return self._normalize_and_store(resp.json())
-        except (ValueError, AuthError):
+            return self._normalize_and_store(data)
+        except AuthError:
             return None
 
     def _exchange_code(self, config: ServerConfig, code: str, verifier: str) -> Dict:
         url = f"{config.supabase_url}/auth/v1/token?grant_type=pkce"
-        resp = requests.post(
-            url,
-            headers={"apikey": config.supabase_anon_key, "content-type": "application/json"},
-            json={"auth_code": code, "code_verifier": verifier},
-            timeout=30,
-        )
-        if resp.status_code != 200:
+        try:
+            status, data, raw = request_json(
+                "POST", url,
+                headers={"apikey": config.supabase_anon_key},
+                body={"auth_code": code, "code_verifier": verifier},
+                timeout=30,
+            )
+        except HttpError as e:
+            raise AuthError(f"Token exchange failed: {e}") from e
+        if status != 200:
             detail = ""
-            try:
-                detail = resp.json().get("error_description") or resp.json().get("msg") or ""
-            except ValueError:
-                detail = resp.text[:200]
-            raise AuthError(f"Token exchange failed ({resp.status_code}). {detail}".strip())
-        return self._normalize_and_store(resp.json())
+            if isinstance(data, dict):
+                detail = data.get("error_description") or data.get("msg") or ""
+            raise AuthError(f"Token exchange failed ({status}). {detail}".strip())
+        return self._normalize_and_store(data)
 
     def _login(self, config: ServerConfig, timeout: int = 300) -> Dict:
         verifier, challenge = _pkce_pair()

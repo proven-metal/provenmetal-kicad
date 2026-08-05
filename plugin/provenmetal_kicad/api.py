@@ -1,13 +1,12 @@
-"""HTTP client for the ProvenMetal Central /api/kicad/* surface."""
+"""HTTP client for the ProvenMetal Central /api/kicad/* surface (stdlib only)."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-import requests
-
 from . import __version__
+from ._http import request_json, HttpError
 
 
 class ApiError(Exception):
@@ -29,20 +28,17 @@ class ProvenMetalClient:
     def __init__(self, base_url: str, timeout: int = 30):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self._session = requests.Session()
-        self._session.headers.update({"user-agent": f"provenmetal-kicad/{__version__}"})
 
     # -- public bootstrap ----------------------------------------------------
 
     def get_config(self) -> ServerConfig:
         url = f"{self.base_url}/api/kicad/config"
         try:
-            resp = self._session.get(url, timeout=self.timeout)
-        except requests.RequestException as e:
+            status, data, _ = request_json("GET", url, timeout=self.timeout)
+        except HttpError as e:
             raise ApiError(f"Couldn't reach ProvenMetal Central at {self.base_url}: {e}") from e
-        if resp.status_code != 200:
-            raise ApiError(f"Config request failed ({resp.status_code}).", status=resp.status_code)
-        data = resp.json()
+        if status != 200 or not isinstance(data, dict):
+            raise ApiError(f"Config request failed ({status}).", status=status)
         if not data.get("supabaseUrl") or not data.get("supabaseAnonKey"):
             raise ApiError("Server did not return Supabase configuration.")
         return ServerConfig(
@@ -92,19 +88,13 @@ class ProvenMetalClient:
     ) -> Dict[str, Any]:
         headers = {"authorization": f"Bearer {token}"}
         try:
-            resp = self._session.request(
-                method, url, headers=headers, json=json_body, timeout=timeout
-            )
-        except requests.RequestException as e:
+            status, data, _ = request_json(method, url, headers=headers, body=json_body, timeout=timeout)
+        except HttpError as e:
             raise ApiError(f"Request to {url} failed: {e}") from e
 
-        try:
-            data = resp.json()
-        except ValueError:
+        if not isinstance(data, dict):
             data = {}
-
-        if resp.status_code >= 400 or (isinstance(data, dict) and data.get("ok") is False):
-            message = (data.get("error") if isinstance(data, dict) else None) or f"Request failed ({resp.status_code})."
-            code = data.get("code") if isinstance(data, dict) else None
-            raise ApiError(message, status=resp.status_code, code=code)
+        if status >= 400 or data.get("ok") is False:
+            message = data.get("error") or f"Request failed ({status})."
+            raise ApiError(message, status=status, code=data.get("code"))
         return data
