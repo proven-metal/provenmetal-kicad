@@ -36,35 +36,30 @@ def main() -> int:
         return 1
 
     settings = load_settings(settings_dir(context.settings_path))
-    ui.report(f"Project: {context.project_name} ({context.project_dir})")
     ui._log(f"project={context.project_name} dir={context.project_dir} cli={context.kicad_cli}")
-    try:
-        result = run(context, settings=settings, interactive=True, report=ui.report)
+
+    def run_fn(report):
+        report(f"Project: {context.project_name}")
+        result = run(context, settings=settings, interactive=True, report=report)
         ui._log(f"run ok: {result.summary}")
-    except Exception as e:  # surface a friendly message; details go to stdout
-        import traceback as _tb
-        ui._log("run failed:\n" + _tb.format_exc())
-        ui.show_error(str(e))
-        return 1
-
-    # KiCad 11+: optionally write the verdict back into the schematic symbols.
-    if settings.writeback and result.lines:
-        try:
-            from provenmetal_kicad.writeback import apply_writeback, WritebackUnavailable
-
+        # KiCad 11+: optionally write the verdict back into the schematic symbols.
+        if settings.writeback and result.lines:
             try:
-                apply_writeback(
-                    context.ipc_client,
-                    result.lines,
-                    prefix=settings.writeback_field_prefix,
-                    report=ui.report,
-                )
-            except WritebackUnavailable as e:
-                ui.report(f"Writeback skipped: {e}")
-        except Exception as e:  # never let writeback break the run
-            ui.report(f"Writeback skipped: {e}")
+                from provenmetal_kicad.writeback import apply_writeback, WritebackUnavailable
 
-    ui.show_results(result, open_browser=True)
+                try:
+                    apply_writeback(
+                        context.ipc_client, result.lines,
+                        prefix=settings.writeback_field_prefix, report=report,
+                    )
+                except WritebackUnavailable as e:
+                    report(f"Writeback skipped: {e}")
+            except Exception as e:  # never let writeback break the run
+                report(f"Writeback skipped: {e}")
+        return result
+
+    # Opens a window immediately and shows live progress, then the results.
+    ui.run_with_window(run_fn)
     return 0
 
 

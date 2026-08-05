@@ -8,10 +8,11 @@ dialog - but wx is never required.
 
 from __future__ import annotations
 
+import threading
 import time
 import traceback
 import webbrowser
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
     from .core import RunResult
@@ -162,6 +163,111 @@ def _show_dialog(wx, result: "RunResult", text: str) -> None:
     wx.CallAfter(_raise)
     dlg.ShowModal()
     dlg.Destroy()
+
+
+def run_with_window(run_fn: "Callable[[Callable[[str], None]], RunResult]") -> None:
+    """Open a window immediately, run `run_fn(report)` in a background thread while
+    showing live progress, then fill the window with the results.
+
+    `run_fn` takes a `report(msg)` callback and returns a RunResult (or raises).
+    Falls back to a plain run + results dialog when wx isn't available.
+    """
+    wx = _try_wx()
+    if wx is None:
+        # No GUI: run inline and print/open the report at the end.
+        result = run_fn(report)
+        show_results(result)
+        return
+
+    class _ProgressFrame(wx.Frame):
+        def __init__(self):
+            super().__init__(
+                None, title="ProvenMetal Sourcing", size=(600, 480),
+                style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP,
+            )
+            panel = wx.Panel(self)
+            v = wx.BoxSizer(wx.VERTICAL)
+            self.head = wx.StaticText(panel, label="Working...")
+            f = self.head.GetFont()
+            f.SetPointSize(f.GetPointSize() + 2)
+            f.SetWeight(wx.FONTWEIGHT_BOLD)
+            self.head.SetFont(f)
+            v.Add(self.head, 0, wx.ALL, 12)
+            self.gauge = wx.Gauge(panel, range=100)
+            v.Add(self.gauge, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
+            self.box = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_DONTWRAP)
+            self.box.SetFont(wx.Font(wx.FontInfo(11).Family(wx.FONTFAMILY_TELETYPE)))
+            v.Add(self.box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
+            row = wx.BoxSizer(wx.HORIZONTAL)
+            self.open_btn = wx.Button(panel, label="Open report")
+            self.open_btn.Disable()
+            self.close_btn = wx.Button(panel, id=wx.ID_CLOSE, label="Close")
+            row.AddStretchSpacer()
+            row.Add(self.open_btn, 0, wx.RIGHT, 8)
+            row.Add(self.close_btn, 0)
+            v.Add(row, 0, wx.EXPAND | wx.ALL, 12)
+            panel.SetSizer(v)
+            self._report_url = None
+            self.open_btn.Bind(wx.EVT_BUTTON, self._on_open)
+            self.close_btn.Bind(wx.EVT_BUTTON, lambda _e: self.Close())
+            self.Bind(wx.EVT_CLOSE, self._on_close)
+            self._timer = wx.Timer(self)
+            self.Bind(wx.EVT_TIMER, lambda _e: self.gauge.Pulse())
+            self._timer.Start(120)
+            self.CentreOnScreen()
+            self.Raise()
+            self.RequestUserAttention()
+
+        def _on_open(self, _evt):
+            if self._report_url:
+                webbrowser.open(self._report_url)
+
+        def add_line(self, msg):
+            self.box.AppendText(msg + "\n")
+
+        def finish_ok(self, result):
+            self._timer.Stop()
+            self.gauge.SetValue(100)
+            s = result.summary
+            self.head.SetLabel(
+                f"Parts: {s.get('total', 0)}     Pass: {s.get('pass', 0)}     "
+                f"Needs review: {s.get('review', 0)}     Fail: {s.get('fail', 0)}"
+            )
+            self.box.AppendText("\n" + summary_text(result) + "\n")
+            self._report_url = result.report_url
+            self.open_btn.Enable()
+            self.Raise()
+
+        def finish_error(self, msg):
+            self._timer.Stop()
+            self.gauge.SetValue(0)
+            self.head.SetLabel("Something went wrong")
+            self.box.AppendText("\nERROR: " + msg + "\n")
+            self.Raise()
+
+        def _on_close(self, _evt):
+            try:
+                self._timer.Stop()
+            except Exception:
+                pass
+            self.Destroy()
+            app = wx.GetApp()
+            if app:
+                app.ExitMainLoop()
+
+    frame = _ProgressFrame()
+    frame.Show()
+
+    def worker():
+        try:
+            res = run_fn(lambda m: wx.CallAfter(frame.add_line, m))
+            wx.CallAfter(frame.finish_ok, res)
+        except Exception as e:  # noqa: BLE001
+            _log("run failed:\n" + traceback.format_exc())
+            wx.CallAfter(frame.finish_error, str(e))
+
+    threading.Thread(target=worker, daemon=True).start()
+    wx.GetApp().MainLoop()
 
 
 def show_error(message: str) -> None:

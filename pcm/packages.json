@@ -31,13 +31,13 @@
       ],
       "versions": [
         {
-          "version": "0.1.5",
+          "version": "0.1.6",
           "status": "development",
           "kicad_version": "9.0",
-          "download_url": "https://github.com/proven-metal/provenmetal-kicad/releases/download/v0.1.5/provenmetal-sourcing-0.1.5.zip",
-          "download_sha256": "071eb844c689f79ea89996cf5f0903ce2a94e43d915eed86f0d85b2bba6988b1",
-          "download_size": 170162,
-          "install_size": 318963
+          "download_url": "https://github.com/proven-metal/provenmetal-kicad/releases/download/v0.1.6/provenmetal-sourcing-0.1.6.zip",
+          "download_sha256": "1b4b40b34e53682956f8c9f7e0bba79b97a818370d18e45cf1d5a13f88123561",
+          "download_size": 171057,
+          "install_size": 322937
         }
       ]
     }
