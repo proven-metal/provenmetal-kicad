@@ -8,6 +8,7 @@ dialog - but wx is never required.
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 import traceback
@@ -179,25 +180,79 @@ def run_with_window(run_fn: "Callable[[Callable[[str], None]], RunResult]") -> N
         show_results(result)
         return
 
+    # ProvenMetal brand palette (defense-grade: black canvas, bone type, one red).
+    CANVAS = wx.Colour(10, 10, 10)
+    PANEL = wx.Colour(20, 20, 20)
+    BONE = wx.Colour(244, 246, 248)
+    RED = wx.Colour(255, 0, 33)
+    STEEL = wx.Colour(154, 167, 176)
+    LINE = wx.Colour(45, 45, 45)
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources", "icon_48.png")
+
+    def mono(size, bold=False):
+        info = wx.FontInfo(size).FaceName("Menlo")
+        return wx.Font(info.Bold() if bold else info)
+
     class _ProgressFrame(wx.Frame):
         def __init__(self):
             super().__init__(
-                None, title="ProvenMetal Sourcing", size=(600, 480),
+                None, title="ProvenMetal Sourcing", size=(640, 520),
                 style=wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP,
             )
+            self.SetBackgroundColour(CANVAS)
+            try:
+                self.SetIcon(wx.Icon(logo_path, wx.BITMAP_TYPE_PNG))
+            except Exception:
+                pass
             panel = wx.Panel(self)
+            panel.SetBackgroundColour(CANVAS)
+            self._panel = panel
             v = wx.BoxSizer(wx.VERTICAL)
-            self.head = wx.StaticText(panel, label="Working...")
-            f = self.head.GetFont()
-            f.SetPointSize(f.GetPointSize() + 2)
-            f.SetWeight(wx.FONTWEIGHT_BOLD)
-            self.head.SetFont(f)
-            v.Add(self.head, 0, wx.ALL, 12)
+
+            # Header: logo mark + wordmark.
+            header = wx.BoxSizer(wx.HORIZONTAL)
+            try:
+                header.Add(
+                    wx.StaticBitmap(panel, bitmap=wx.Bitmap(logo_path, wx.BITMAP_TYPE_PNG)),
+                    0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 14,
+                )
+            except Exception:
+                pass
+            tb = wx.BoxSizer(wx.VERTICAL)
+            word = wx.StaticText(panel, label="PROVENMETAL")
+            word.SetForegroundColour(BONE)
+            word.SetFont(mono(16, bold=True))
+            sub = wx.StaticText(panel, label="BOM SOURCING")
+            sub.SetForegroundColour(STEEL)
+            sub.SetFont(mono(9))
+            tb.Add(word)
+            tb.Add(sub, 0, wx.TOP, 3)
+            header.Add(tb, 0, wx.ALIGN_CENTER_VERTICAL)
+            v.Add(header, 0, wx.ALL, 18)
+
+            hair = wx.Panel(panel, size=(-1, 1))
+            hair.SetBackgroundColour(LINE)
+            v.Add(hair, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 18)
+
+            self.status = wx.StaticText(panel, label="Working ...")
+            self.status.SetForegroundColour(STEEL)
+            self.status.SetFont(mono(12, bold=True))
+            v.Add(self.status, 0, wx.ALL, 18)
+
+            self.counts = wx.BoxSizer(wx.HORIZONTAL)
+            v.Add(self.counts, 0, wx.LEFT | wx.RIGHT, 18)
+
             self.gauge = wx.Gauge(panel, range=100)
-            v.Add(self.gauge, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
-            self.box = wx.TextCtrl(panel, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_DONTWRAP)
-            self.box.SetFont(wx.Font(wx.FontInfo(11).Family(wx.FONTFAMILY_TELETYPE)))
-            v.Add(self.box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
+            v.Add(self.gauge, 0, wx.EXPAND | wx.ALL, 18)
+
+            self.box = wx.TextCtrl(
+                panel, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_DONTWRAP | wx.BORDER_SIMPLE
+            )
+            self.box.SetBackgroundColour(PANEL)
+            self.box.SetForegroundColour(BONE)
+            self.box.SetFont(mono(11))
+            v.Add(self.box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 18)
+
             row = wx.BoxSizer(wx.HORIZONTAL)
             self.open_btn = wx.Button(panel, label="Open report")
             self.open_btn.Disable()
@@ -205,7 +260,8 @@ def run_with_window(run_fn: "Callable[[Callable[[str], None]], RunResult]") -> N
             row.AddStretchSpacer()
             row.Add(self.open_btn, 0, wx.RIGHT, 8)
             row.Add(self.close_btn, 0)
-            v.Add(row, 0, wx.EXPAND | wx.ALL, 12)
+            v.Add(row, 0, wx.EXPAND | wx.ALL, 18)
+
             panel.SetSizer(v)
             self._report_url = None
             self.open_btn.Bind(wx.EVT_BUTTON, self._on_open)
@@ -225,23 +281,35 @@ def run_with_window(run_fn: "Callable[[Callable[[str], None]], RunResult]") -> N
         def add_line(self, msg):
             self.box.AppendText(msg + "\n")
 
+        def _chip(self, label, value, color):
+            t = wx.StaticText(self._panel, label=f"{label} {value}")
+            t.SetForegroundColour(color)
+            t.SetFont(mono(14, bold=True))
+            self.counts.Add(t, 0, wx.RIGHT, 22)
+
         def finish_ok(self, result):
             self._timer.Stop()
             self.gauge.SetValue(100)
             s = result.summary
-            self.head.SetLabel(
-                f"Parts: {s.get('total', 0)}     Pass: {s.get('pass', 0)}     "
-                f"Needs review: {s.get('review', 0)}     Fail: {s.get('fail', 0)}"
-            )
+            self.status.SetLabel("DONE" + (f"   {result.ref}" if result.ref else ""))
+            self.status.SetForegroundColour(BONE)
+            self.counts.Clear(delete_windows=True)
+            self._chip("PARTS", s.get("total", 0), STEEL)
+            self._chip("PASS", s.get("pass", 0), BONE)
+            self._chip("REVIEW", s.get("review", 0), STEEL)
+            fail = s.get("fail", 0)
+            self._chip("FAIL", fail, RED if fail else STEEL)
             self.box.AppendText("\n" + summary_text(result) + "\n")
             self._report_url = result.report_url
             self.open_btn.Enable()
+            self._panel.Layout()
             self.Raise()
 
         def finish_error(self, msg):
             self._timer.Stop()
             self.gauge.SetValue(0)
-            self.head.SetLabel("Something went wrong")
+            self.status.SetLabel("SOMETHING WENT WRONG")
+            self.status.SetForegroundColour(RED)
             self.box.AppendText("\nERROR: " + msg + "\n")
             self.Raise()
 

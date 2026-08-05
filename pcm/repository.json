@@ -9,8 +9,8 @@
   },
   "packages": {
     "url": "https://raw.githubusercontent.com/proven-metal/provenmetal-kicad/main/pcm/packages.json",
-    "sha256": "4b38877ead34a9c953f033157fb1866d54718a88dbb680410d3506e82007ad31",
-    "update_time_utc": "2026-08-05 21:43:19",
-    "update_timestamp": 1785966199
+    "sha256": "a100502b6d91c26640bde14533db338e1c3dbfb4da54f7573a429cebb2e2caf3",
+    "update_time_utc": "2026-08-05 21:49:08",
+    "update_timestamp": 1785966548
   }
 }
