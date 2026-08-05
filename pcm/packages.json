@@ -1,0 +1,45 @@
+{
+  "packages": [
+    {
+      "$schema": "https://go.kicad.org/pcm/schemas/v1",
+      "name": "ProvenMetal Sourcing",
+      "description": "Source your BOM against ProvenMetal Central from KiCad.",
+      "description_full": "Pushes a KiCad project's schematic BOM to ProvenMetal Central, sources every part against distributor stock and lead time, and flags anything that is not in stock (for the full build quantity) or sourceable within one week. Long-lead and unsourceable parts are surfaced immediately, with a link to the full web report. KiCad 9+ (IPC plugin). Reads the BOM via kicad-cli.",
+      "identifier": "com.provenmetal.kicad",
+      "type": "plugin",
+      "author": {
+        "name": "ProvenMetal",
+        "contact": {
+          "web": "https://provenmetal.com"
+        }
+      },
+      "maintainer": {
+        "name": "ProvenMetal",
+        "contact": {
+          "web": "https://provenmetal.com"
+        }
+      },
+      "license": "MIT",
+      "resources": {
+        "homepage": "https://provenmetal.com"
+      },
+      "tags": [
+        "bom",
+        "sourcing",
+        "procurement",
+        "supply-chain"
+      ],
+      "versions": [
+        {
+          "version": "0.1.0",
+          "status": "development",
+          "kicad_version": "9.0",
+          "download_url": "https://github.com/proven-metal/provenmetal-kicad/releases/download/v0.1.0/provenmetal-sourcing-0.1.0.zip",
+          "download_sha256": "7da76685c426ce1dc45a822e6dbee3b58e0607c5e4bed07e051d8bdb96c6fcba",
+          "download_size": 29506,
+          "install_size": 65134
+        }
+      ]
+    }
+  ]
+}
