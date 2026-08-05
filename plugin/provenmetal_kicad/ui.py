@@ -35,7 +35,7 @@ def summary_text(result: "RunResult") -> str:
     s = result.summary
     header = "ProvenMetal sourcing"
     if result.ref:
-        header = f"{header} \u2014 {result.ref}"
+        header = f"{header} ({result.ref})"
     lines = [
         header,
         f"Parts: {s.get('total', 0)}   Pass: {s.get('pass', 0)}   "
@@ -57,7 +57,7 @@ def summary_text(result: "RunResult") -> str:
         for ln in flagged[:15]:
             ref = ln.get("reference") or ln.get("lineKey") or "?"
             part = ln.get("mpn") or ln.get("lcsc") or ln.get("lineKey") or "?"
-            lines.append(f"  [{ln.get('verdict', '?').upper()}] {ref}  {part}  \u2014 {ln.get('reason', '')}")
+            lines.append(f"  [{ln.get('verdict', '?').upper()}] {ref}  {part}  {ln.get('reason', '')}")
         if len(flagged) > 15:
             lines.append(f"  ... and {len(flagged) - 15} more")
     else:

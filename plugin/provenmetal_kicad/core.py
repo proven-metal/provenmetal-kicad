@@ -16,7 +16,7 @@ from .kicad_env import KicadContext
 from .bom import find_kicad_cli, find_schematic, export_bom, parse_bom_csv
 from .grouping import group_rows
 from .project_link import load_link, save_link, ProjectLink
-from .api import ProvenMetalClient
+from .api import ProvenMetalClient, ApiError
 from .auth import build_authenticator
 
 # A reporter shows progress to the user (print, wx, ...). Never required.
@@ -103,14 +103,27 @@ def run(
         f"Pushing {len(lines)} parts for {resolved_board_count} board(s) and sourcing "
         "(this can take up to a minute) ..."
     )
-    resp = client.push_bom(
-        token,
-        name=context.project_name,
-        board_count=resolved_board_count,
-        lines=lines,
-        project_id=link.project_id if link else None,
-        client_version=__version__,
-    )
+    def do_push(project_id):
+        return client.push_bom(
+            token,
+            name=context.project_name,
+            board_count=resolved_board_count,
+            lines=lines,
+            project_id=project_id,
+            client_version=__version__,
+        )
+
+    try:
+        resp = do_push(link.project_id if link else None)
+    except ApiError as e:
+        # The linked project was deleted or is no longer accessible: forget the
+        # stale link and create a fresh project instead of failing.
+        if link and e.code in ("not-found", "forbidden"):
+            report("Linked project is gone; creating a new one ...")
+            warnings.append("The previously linked ProvenMetal project no longer exists; a new one was created.")
+            resp = do_push(None)
+        else:
+            raise
 
     project_id = resp.get("projectId")
     if project_id:
