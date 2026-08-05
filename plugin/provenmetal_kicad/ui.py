@@ -19,9 +19,9 @@ def _try_wx():
     try:
         import wx  # type: ignore
 
-        # An app must exist for dialogs; reuse KiCad's if present.
-        if wx.App.Get() is None:
-            wx.App(False)
+        # An app must exist for dialogs; reuse one if present, else create it.
+        if wx.GetApp() is None:
+            wx.App()
         return wx
     except Exception:
         return None
@@ -71,24 +71,58 @@ def show_results(result: "RunResult", open_browser: bool = True) -> None:
     text = summary_text(result)
     print(text, flush=True)
 
+    wx = _try_wx()
+    if wx is not None:
+        try:
+            _show_dialog(wx, result, text)
+            return  # the dialog has its own "Open report" button
+        except Exception as e:
+            print(f"[ProvenMetal] (results dialog error: {e})", flush=True)
+
+    # No GUI available: fall back to opening the web report.
     if open_browser and result.report_url:
         try:
             webbrowser.open(result.report_url)
         except Exception:
             pass
 
-    wx = _try_wx()
-    if wx is None:
-        return
-    try:
-        style = wx.OK | wx.ICON_INFORMATION
-        if any(ln.get("verdict") == "fail" for ln in result.lines):
-            style = wx.OK | wx.ICON_WARNING
-        dlg = wx.MessageDialog(None, text, "ProvenMetal Sourcing", style)
-        dlg.ShowModal()
-        dlg.Destroy()
-    except Exception:
-        pass
+
+def _show_dialog(wx, result: "RunResult", text: str) -> None:
+    title = "ProvenMetal Sourcing" + (f" ({result.ref})" if result.ref else "")
+    dlg = wx.Dialog(None, title=title, size=(600, 480),
+                    style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+    panel = wx.Panel(dlg)
+    outer = wx.BoxSizer(wx.VERTICAL)
+
+    s = result.summary
+    head = wx.StaticText(
+        panel,
+        label=f"Parts: {s.get('total', 0)}      Pass: {s.get('pass', 0)}      "
+        f"Needs review: {s.get('review', 0)}      Fail: {s.get('fail', 0)}",
+    )
+    font = head.GetFont()
+    font.SetPointSize(font.GetPointSize() + 2)
+    font.SetWeight(wx.FONTWEIGHT_BOLD)
+    head.SetFont(font)
+    outer.Add(head, 0, wx.ALL, 12)
+
+    box = wx.TextCtrl(panel, value=text, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_DONTWRAP)
+    box.SetFont(wx.Font(wx.FontInfo(11).Family(wx.FONTFAMILY_TELETYPE)))
+    outer.Add(box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
+
+    row = wx.BoxSizer(wx.HORIZONTAL)
+    open_btn = wx.Button(panel, label="Open report")
+    close_btn = wx.Button(panel, id=wx.ID_CLOSE, label="Close")
+    row.AddStretchSpacer()
+    row.Add(open_btn, 0, wx.RIGHT, 8)
+    row.Add(close_btn, 0)
+    outer.Add(row, 0, wx.EXPAND | wx.ALL, 12)
+
+    panel.SetSizer(outer)
+    open_btn.Bind(wx.EVT_BUTTON, lambda _e: webbrowser.open(result.report_url))
+    close_btn.Bind(wx.EVT_BUTTON, lambda _e: dlg.EndModal(wx.ID_CLOSE))
+    dlg.ShowModal()
+    dlg.Destroy()
 
 
 def show_error(message: str) -> None:
