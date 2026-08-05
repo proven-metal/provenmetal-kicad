@@ -23,7 +23,9 @@ from provenmetal_kicad.config import load_settings, settings_dir  # noqa: E402
 
 
 def main() -> int:
+    ui._log("=== button/action invoked ===")
     context = connect_ipc()
+    ui._log(f"connect_ipc -> {'ok' if context else 'None'}")
     if context is None:
         ui.show_error(
             "Couldn't connect to KiCad or find the open project. Open a project in "
@@ -35,9 +37,13 @@ def main() -> int:
 
     settings = load_settings(settings_dir(context.settings_path))
     ui.report(f"Project: {context.project_name} ({context.project_dir})")
+    ui._log(f"project={context.project_name} dir={context.project_dir} cli={context.kicad_cli}")
     try:
         result = run(context, settings=settings, interactive=True, report=ui.report)
+        ui._log(f"run ok: {result.summary}")
     except Exception as e:  # surface a friendly message; details go to stdout
+        import traceback as _tb
+        ui._log("run failed:\n" + _tb.format_exc())
         ui.show_error(str(e))
         return 1
 

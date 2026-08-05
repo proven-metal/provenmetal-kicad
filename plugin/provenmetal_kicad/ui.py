@@ -8,6 +8,8 @@ dialog - but wx is never required.
 
 from __future__ import annotations
 
+import time
+import traceback
 import webbrowser
 from typing import TYPE_CHECKING
 
@@ -15,13 +17,35 @@ if TYPE_CHECKING:
     from .core import RunResult
 
 
+def _log(msg: str) -> None:
+    """Append a line to a debug log so we can see what happened on a button click
+    (the plugin's stdout is easy to miss in KiCad)."""
+    try:
+        from .config import _platform_config_dir
+
+        d = _platform_config_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        with open(d / "last-run.log", "a", encoding="utf-8") as f:
+            f.write(time.strftime("%Y-%m-%d %H:%M:%S ") + msg + "\n")
+    except Exception:
+        pass
+
+
+# Hold a module-level reference to the wx.App. Without this the app is garbage
+# collected right after _try_wx returns, and building any window then fails with
+# "The wx.App object must be created first!".
+_WX_APP = None
+
+
 def _try_wx():
+    global _WX_APP
     try:
         import wx  # type: ignore
-
-        # An app must exist for dialogs; reuse one if present, else create it.
+    except Exception:
+        return None
+    try:
         if wx.GetApp() is None:
-            wx.App()
+            _WX_APP = wx.App()
         return wx
     except Exception:
         return None
@@ -71,26 +95,30 @@ def show_results(result: "RunResult", open_browser: bool = True) -> None:
     text = summary_text(result)
     print(text, flush=True)
 
-    wx = _try_wx()
-    if wx is not None:
-        try:
-            _show_dialog(wx, result, text)
-            return  # the dialog has its own "Open report" button
-        except Exception as e:
-            print(f"[ProvenMetal] (results dialog error: {e})", flush=True)
-
-    # No GUI available: fall back to opening the web report.
+    # Always open the web report first (this is reliable from a KiCad-spawned
+    # process); the in-KiCad window is a best-effort extra on top.
     if open_browser and result.report_url:
         try:
             webbrowser.open(result.report_url)
-        except Exception:
-            pass
+            _log("opened browser report")
+        except Exception as e:
+            _log(f"browser open failed: {e!r}")
+
+    wx = _try_wx()
+    _log(f"wx available: {wx is not None}")
+    if wx is not None:
+        try:
+            _show_dialog(wx, result, text)
+            _log("results dialog shown+closed")
+        except Exception as e:
+            _log("results dialog error:\n" + traceback.format_exc())
+            print(f"[ProvenMetal] (results dialog error: {e})", flush=True)
 
 
 def _show_dialog(wx, result: "RunResult", text: str) -> None:
     title = "ProvenMetal Sourcing" + (f" ({result.ref})" if result.ref else "")
     dlg = wx.Dialog(None, title=title, size=(600, 480),
-                    style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+                    style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER | wx.STAY_ON_TOP)
     panel = wx.Panel(dlg)
     outer = wx.BoxSizer(wx.VERTICAL)
 
@@ -121,6 +149,17 @@ def _show_dialog(wx, result: "RunResult", text: str) -> None:
     panel.SetSizer(outer)
     open_btn.Bind(wx.EVT_BUTTON, lambda _e: webbrowser.open(result.report_url))
     close_btn.Bind(wx.EVT_BUTTON, lambda _e: dlg.EndModal(wx.ID_CLOSE))
+
+    # Bring it to the front on macOS, where a window from a subprocess can open
+    # behind KiCad.
+    def _raise():
+        try:
+            dlg.Raise()
+            dlg.RequestUserAttention()
+        except Exception:
+            pass
+
+    wx.CallAfter(_raise)
     dlg.ShowModal()
     dlg.Destroy()
 
