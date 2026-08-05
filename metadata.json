@@ -29,7 +29,7 @@
     ],
     "versions": [
         {
-            "version": "0.1.0",
+            "version": "0.1.1",
             "status": "development",
             "kicad_version": "9.0",
             "_comment": "download_url / download_sha256 / download_size / install_size are filled in when the package zip is published to a PCM repository."
