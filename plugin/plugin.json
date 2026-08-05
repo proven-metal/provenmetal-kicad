@@ -1,0 +1,31 @@
+{
+    "$schema": "https://go.kicad.org/api/schemas/v1",
+    "identifier": "com.provenmetal.kicad",
+    "name": "ProvenMetal Sourcing",
+    "description": "Push a project's BOM to ProvenMetal Central and flag parts that aren't in stock or sourceable within a week.",
+    "runtime": {
+        "type": "python",
+        "min_version": "3.9"
+    },
+    "actions": [
+        {
+            "identifier": "source-bom",
+            "name": "Source with ProvenMetal",
+            "description": "Extract the schematic BOM, push it to ProvenMetal Central, and show the sourcing verdict.",
+            "show-button": true,
+            "scopes": [
+                "schematic",
+                "pcb"
+            ],
+            "entrypoint": "provenmetal_kicad/entry.py",
+            "icons-light": [
+                "resources/icon_24.png",
+                "resources/icon_48.png"
+            ],
+            "icons-dark": [
+                "resources/icon_24.png",
+                "resources/icon_48.png"
+            ]
+        }
+    ]
+}

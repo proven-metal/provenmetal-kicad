@@ -1,0 +1,28 @@
+Reference,Value,Voltage,Dielectric,Tolerance,Footprint,QUANTITY,Manufacturer,MPN,Description,Sourcing
+"C1,C5",10u,16V,X5R,20%,Capacitor_SMD:C_0603_1608Metric,2,Murata,GRM188R61C106KAALD,10 µF 16V X5R 0603,Buy
+"C2,C8,C11-C18",100n,16V,X7R,10%,Capacitor_SMD:C_0402_1005Metric,10,Samsung EM,CL05B104KO5NNNC,100 nF 16V X7R 0402,Buy
+"C3,C4",15p,50V,C0G,5%,Capacitor_SMD:C_0402_1005Metric,2,Samsung EM,CL05C150JB5NNNC,15 pF 50V C0G/NP0 0402,Buy
+"C6,C7,C9,C10",4.7u,10V,X5R,10%,Capacitor_SMD:C_0402_1005Metric,4,Taiyo Yuden,LMK105BJ475MV-F,4.7 µF 10V X5R 0402,Buy
+D1,PWR,,,,LED_SMD:LED_0603_1608Metric,1,Würth Elektronik,150060GS75000,"LED 0603, power indicator — color of choice",Buy
+D2-D8,amber,,,,LED_SMD:LED_0402_1005Metric,7,Würth Elektronik,150040AS75000,"LED 0402, amber — color of choice; K=pad1",Buy
+J1,USB-C,,,,Connector_USB:USB_C_Receptacle_Amphenol_12401548E4-2A,1,Amphenol,12401548E4-2A,"USB-C receptacle, USB2.0, 16-pos, SMD/TH",Buy
+L1,3.3u,,,,pg:L_Abracon_AOTA-B201610S3R3,1,Abracon,AOTA-B201610S3R3-101-T,"3.3 µH power inductor, 2016 (RP2350 SMPS)",CONSIGNED - RPi SC1933 kit (already owned)
+"R2,R4,R6,R11-R18",1k,,,,Resistor_SMD:R_0402_1005Metric,11,Yageo,RC0402FR-071KL,1 kΩ ±1% 1/16W 0402,Buy
+R5,33,,,,Resistor_SMD:R_0402_1005Metric,1,Yageo,RC0402FR-0733RL,33 Ω ±1% 1/16W 0402,Buy
+"R7,R8",27,,,,Resistor_SMD:R_0402_1005Metric,2,Yageo,RC0402FR-0727RL,27 Ω ±1% 1/16W 0402,Buy
+"R9,R10",5k1,,,,Resistor_SMD:R_0402_1005Metric,2,Yageo,RC0402FR-075K1L,5.1 kΩ ±1% 1/16W 0402,Buy
+SW1,BOOTSEL,,,,Button_Switch_SMD:SW_SPST_B3U-1000P,1,Omron,B3U-1000P,"Tact switch, SPST-NO, SMD",Buy
+SW2,RESET,,,,Button_Switch_SMD:SW_SPST_B3U-1000P,1,Omron,B3U-1000P,"Tact switch, SPST-NO, SMD",Buy
+TP1,SWCLK,,,,TestPoint:TestPoint_Pad_D1.5mm,1,—,—,Bare gold test pad (no part to populate),-
+TP2,SWDIO,,,,TestPoint:TestPoint_Pad_D1.5mm,1,—,—,Bare gold test pad (no part to populate),-
+TP3,GND,,,,TestPoint:TestPoint_Pad_D1.5mm,1,—,—,Bare gold test pad (no part to populate),-
+TP4,quote,,,,TestPoint:TestPoint_Pad_D1.5mm,1,—,—,Bare gold test pad (no part to populate),-
+TP5,atom,,,,TestPoint:TestPoint_Pad_D1.5mm,1,—,—,Bare gold test pad (no part to populate),-
+TP6,eq,,,,TestPoint:TestPoint_Pad_D1.5mm,1,—,—,Bare gold test pad (no part to populate),-
+TP7,car,,,,TestPoint:TestPoint_Pad_D1.5mm,1,—,—,Bare gold test pad (no part to populate),-
+TP8,cdr,,,,TestPoint:TestPoint_Pad_D1.5mm,1,—,—,Bare gold test pad (no part to populate),-
+TP9,cons,,,,TestPoint:TestPoint_Pad_D1.5mm,1,—,—,Bare gold test pad (no part to populate),-
+TP10,cond,,,,TestPoint:TestPoint_Pad_D1.5mm,1,—,—,Bare gold test pad (no part to populate),-
+U1,RP2354A,,,,Package_DFN_QFN:QFN-60-1EP_7x7mm_P0.4mm_EP3.4x3.4mm,1,Raspberry Pi,RP2354A,"MCU RP2354A (2 MB flash), QFN-60 7x7",CONSIGNED - RPi SC1933 kit (already owned)
+U2,NCP1117-3.3,,,,Package_TO_SOT_SMD:SOT-223-3_TabPin2,1,onsemi,NCP1117ST33T3G,"LDO 3.3 V fixed, 1 A, SOT-223",Buy
+Y1,ABM8-272-T3,,,,Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm,1,Abracon,ABM8-272-T3,"12.000 MHz crystal, 3.2x2.5, 15 pF CL",CONSIGNED - RPi SC1933 kit (already owned)

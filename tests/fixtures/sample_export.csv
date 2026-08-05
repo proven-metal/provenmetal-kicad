@@ -1,0 +1,7 @@
+"reference","value","footprint","mpn","mpn__1","manufacturer","lcsc","lcsc__1","digikey","mouser","qty","dnp"
+"R1,R2","10k","R_0402_1005Metric","RC0402FR-0710KL","","Yageo","","C60490","","","2",""
+"R3","10k","R_0402_1005Metric","RC0402FR-0710KL","","Yageo","","C60490","","","1",""
+"C1,C2,C3","100n","C_0402_1005Metric","","","","","C1525","","","3",""
+"U1","MCU","LQFP-100","","STM32H743VIT6","STMicroelectronics","","","497-1234-ND","511-STM32","1",""
+"TP1","TP","TestPoint_Pad_D1.0mm","","","","","","","","1","DNP"
+"J1","","","","","","","","","","1",""

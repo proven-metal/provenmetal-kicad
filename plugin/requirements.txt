@@ -1,0 +1,3 @@
+# Dependencies KiCad installs into the plugin's managed virtualenv.
+kicad-python>=0.4.0
+requests>=2.31.0
