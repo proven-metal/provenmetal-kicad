@@ -19,15 +19,27 @@ if TYPE_CHECKING:
     from .core import RunResult
 
 
-def _log(msg: str) -> None:
-    """Append a line to a debug log so we can see what happened on a button click
-    (the plugin's stdout is easy to miss in KiCad)."""
-    try:
-        from .config import _platform_config_dir
+def _log_path():
+    from .config import _platform_config_dir
 
-        d = _platform_config_dir()
-        d.mkdir(parents=True, exist_ok=True)
-        with open(d / "last-run.log", "a", encoding="utf-8") as f:
+    d = _platform_config_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    return d / "last-run.log"
+
+
+def reset_log() -> None:
+    """Start a fresh log for a new run (keeps the file small; last run only)."""
+    try:
+        open(_log_path(), "w", encoding="utf-8").close()
+    except Exception:
+        pass
+
+
+def _log(msg: str) -> None:
+    """Append a line to a debug log so a failed run can be diagnosed (the plugin's
+    stdout is easy to miss inside KiCad). See Troubleshooting in the README."""
+    try:
+        with open(_log_path(), "a", encoding="utf-8") as f:
             f.write(time.strftime("%Y-%m-%d %H:%M:%S ") + msg + "\n")
     except Exception:
         pass
@@ -175,9 +187,13 @@ def run_with_window(run_fn: "Callable[[Callable[[str], None]], RunResult]") -> N
     """
     wx = _try_wx()
     if wx is None:
-        # No GUI: run inline and print/open the report at the end.
-        result = run_fn(report)
-        show_results(result)
+        # No GUI toolkit: run inline, print the summary, open the web report.
+        try:
+            result = run_fn(report)
+            show_results(result)
+        except Exception as e:  # noqa: BLE001
+            _log("run failed (no wx):\n" + traceback.format_exc())
+            show_error(str(e))
         return
 
     # ProvenMetal brand palette (defense-grade: black canvas, bone type, one red).

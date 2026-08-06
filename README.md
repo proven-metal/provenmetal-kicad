@@ -1,62 +1,62 @@
-# ProvenMetal KiCad Plugin
+# ProvenMetal Sourcing for KiCad
 
-Sends a KiCad project's BOM to ProvenMetal Central, sources every part against
-distributor stock and lead time, and flags anything that is not in stock for the
-full build or sourceable within one week.
+A KiCad plugin that checks your BOM against real distributor stock and lead time,
+and flags any part that is not in stock or sourceable within a week.
 
-## How it works
+You click one button in KiCad. The plugin reads your BOM, sends it to ProvenMetal,
+and shows each part as pass, needs review, or fail, with a link to the full report.
 
-1. Click "Source with ProvenMetal" in KiCad.
-2. The plugin reads the BOM (from the schematic, or from a BOM CSV).
-3. It signs you in to ProvenMetal in your browser (once) and sends the BOM.
-4. The server sources each part and returns a result:
-   - pass: in stock for the whole build, or sourceable within a week.
-   - review: not enough data to decide (left for manual sourcing).
-   - fail: not stocked anywhere, or out of stock with a long lead.
-5. You get a summary in KiCad and the full report opens in your browser.
+## What you need
 
-## KiCad versions
-
-Works on KiCad 9, 10, and 11.
-
-- On KiCad 11 the button is in the schematic editor and can write results back
-  into symbol fields.
-- On KiCad 9 and 10 the button is in the PCB editor (their API is PCB only).
-
-The BOM is always read with `kicad-cli`, which handles hierarchy, units, DNP, and
-grouping.
+- KiCad 9, 10, or 11.
+- A ProvenMetal account (sign in with Google the first time; it is free).
+- Parts identified by an MPN, or by a value plus a description (for passives).
+  Parts with no usable identity come back as "needs review".
 
 ## Install
 
-### Plugin and Content Manager (recommended)
+In KiCad, open the **Plugin and Content Manager**, click **Manage**, and add this
+repository URL:
 
-1. In KiCad, open Plugin and Content Manager, click Manage, then add this URL:
-   ```
-   https://raw.githubusercontent.com/proven-metal/provenmetal-kicad/main/pcm/repository.json
-   ```
-2. Install "ProvenMetal Sourcing" and restart KiCad.
-3. Turn on the API in Preferences, Plugins, "Enable KiCad API".
+```
+https://raw.githubusercontent.com/proven-metal/provenmetal-kicad/main/pcm/repository.json
+```
 
-You can also download the latest
+Then install **ProvenMetal Sourcing** and restart KiCad.
+
+Prefer a file? Download the latest
 [release zip](https://github.com/proven-metal/provenmetal-kicad/releases/latest)
-and use "Install from File".
+and use **Install from File** in the Plugin and Content Manager.
 
-### Manual install
+One time, turn on the API: **Settings > Plugins > Enable KiCad API** (on macOS,
+Settings is Cmd+comma), then restart KiCad.
 
-Copy the `plugin/` directory into your KiCad plugins folder:
+## Use
 
-- macOS: `~/Documents/KiCad/<version>/plugins/provenmetal_kicad/`
-- Windows: `C:\Users\<you>\Documents\KiCad\<version>\plugins\provenmetal_kicad\`
-- Linux: `~/.local/share/KiCad/<version>/plugins/provenmetal_kicad/`
+1. Open your project. On KiCad 11 the button is in the schematic editor. On KiCad
+   9 and 10 it is in the PCB editor toolbar (their API is PCB only).
+2. Click **Source with ProvenMetal**.
+3. Sign in the first time (a browser tab opens). It is remembered after that.
+4. A window shows progress, then the results: pass, needs review, and fail counts,
+   the parts that need attention, and an **Open report** button.
 
-KiCad installs the dependencies on first load, then the button appears.
+## What gets sent
 
-## Settings
+The plugin sends your BOM lines (references, value, footprint, MPN, manufacturer,
+LCSC, and any Digi-Key or Mouser numbers), the project name, and your board count.
+It does not upload your schematic or layout. Sourcing matches on MPN or LCSC;
+Digi-Key and Mouser numbers are stored as extra data.
 
-The only required setting is the ProvenMetal Central URL, which defaults to
-`https://central.provenmetal.com`. Login details are fetched from the server.
+## Reading the results
 
-Settings live in `settings.json` in the config directory:
+- **Pass**: in stock for the whole build, or sourceable within a week.
+- **Needs review**: no confident answer yet. Usually a missing part number, or a
+  net label or test point that is not a real part.
+- **Fail**: not stocked anywhere, or out of stock with a long lead.
+
+## Settings (optional)
+
+Settings live in `settings.json` in the config folder:
 
 - macOS: `~/Library/Application Support/provenmetal-kicad/`
 - Linux: `~/.config/provenmetal-kicad/`
@@ -64,98 +64,51 @@ Settings live in `settings.json` in the config directory:
 
 ```jsonc
 {
-  "base_url": "https://central.provenmetal.com",
-  "oauth_provider": "google",
-  "board_count": 10,
-  "exclude_dnp": true,
-  "kicad_cli_path": "",          // set only if auto-discovery fails
-  "field_map": {                 // set if your schematic uses non-standard names
-    "mpn": "Manufacturer Part Number",
-    "lcsc": "LCSC Part #"
+  "board_count": 10,             // how many boards you plan to build
+  "exclude_dnp": true,           // skip Do-Not-Populate parts
+  "kicad_cli_path": "",          // set only if the plugin cannot find kicad-cli
+  "field_map": {                 // set if your fields use non-standard names
+    "mpn": "Manufacturer Part Number"
   },
   "bom_csv": "",                 // read from a BOM CSV instead of the schematic
-  "writeback": false,            // KiCad 11+: write results into symbol fields
-  "writeback_field_prefix": "PM"
+  "writeback": false             // KiCad 11: write results back into symbol fields
 }
 ```
 
-Common field names are detected automatically: MPN, Manufacturer, LCSC (or
-"LCSC Part #"), Digikey, Mouser. Sourcing matches on MPN or LCSC; Digikey and
-Mouser numbers are kept as extra data.
+Standard field names are detected automatically: MPN, Manufacturer, LCSC (or
+"LCSC Part #"), Digikey, Mouser, and Description.
 
-The link between a KiCad project and its ProvenMetal project is stored in a
-`myproject.provenmetal.json` file next to the schematic. It is safe to commit.
+### Source from a BOM CSV
 
-## Sourcing without MPNs
+If your part numbers live in a generated BOM rather than in the schematic, set
+`bom_csv` in settings.json to the CSV path, then click the button as usual.
+Headers are matched by name and reference ranges like `C11-C18` are expanded.
 
-Most schematics do not carry manufacturer part numbers. That is fine. The plugin
-sends the value, footprint, and description, and the server sources passives
-(resistors, capacitors, inductors, LEDs, and similar) from those. For example
-"10 uF 16V X5R 0603" is enough to find a real, in-stock part.
+### Writeback (KiCad 11)
 
-Parts that genuinely cannot be identified (no MPN, LCSC, or usable value) come
-back as "review", which is the signal that they need a part number.
+Set `"writeback": true` to write the result onto each symbol as `PM_Status`,
+`PM_Stock`, `PM_Lead_Days`, and `PM_Supplier`. This does nothing on KiCad 9 and 10.
 
-If your MPNs live in a generated BOM rather than in the schematic, point the
-plugin at that CSV. Headers are matched by name and reference ranges like
-`C11-C18` are expanded.
+## Troubleshooting
 
-```bash
-python -m provenmetal_kicad --project /path/to/project --bom-csv bom.csv --board-count 10
+- **No button after installing.** The plugin's Python environment has to build
+  first. Open Settings > Plugins, right-click ProvenMetal Sourcing, and choose
+  Recreate Plugin Environment. Make sure Enable KiCad API is on, then restart.
+- **Clicking does nothing, or an error.** A log of the last run is written to the
+  config folder above as `last-run.log`. Open an issue and paste it.
+- **Cannot find kicad-cli.** Set `kicad_cli_path` in settings to the full path of
+  your `kicad-cli` binary.
+
+## For contributors
+
+```
+python -m unittest discover -s tests -p "test_*.py" -v   # tests, no KiCad needed
+python build_pcm.py                                       # build the PCM package
 ```
 
-## Writeback (KiCad 11)
+The pure logic (fields, grouping, verdict) has no KiCad or network dependency.
+The plugin ships no third-party Python dependencies beyond the KiCad API bindings.
 
-Set `"writeback": true` to write `PM_Status`, `PM_Stock`, `PM_Lead_Days`,
-`PM_Supplier`, and `PM_Checked` onto each symbol after sourcing, matched by
-reference, in one undoable commit. This does nothing on KiCad 9 and 10.
+## License
 
-## Command line
-
-```bash
-python -m provenmetal_kicad --project /path/to/project --board-count 10
-python -m provenmetal_kicad --login
-python -m provenmetal_kicad --set-base-url https://central.example.com
-python -m provenmetal_kicad --logout
-```
-
-Run from the `plugin/` directory, or put `plugin/` on `PYTHONPATH`.
-
-## Server (ProvenMetal Central)
-
-The plugin uses these endpoints on ProvenMetal Central:
-
-- `GET /api/kicad/config`: public config for the login flow.
-- `POST /api/kicad/bom`: send the BOM, source it, get the result (bearer token).
-- `GET /api/kicad/bom/[projectId]`: latest result for a project (bearer token).
-
-Setup on the server:
-
-1. Apply the migration `supabase/shared/0034_kicad_bom_revisions.sql`.
-2. Set `NEXT_PUBLIC_SITE_URL`, the Supabase variables, and (for live sourcing)
-   `SOURCING_SERVICE_URL` and `SOURCING_SERVICE_HMAC_KEY`. Without the sourcing
-   variables the BOM is stored and returned with status "no-sourcing".
-3. In Supabase Auth, add these redirect URLs for the plugin login:
-   ```
-   http://127.0.0.1:53682/callback
-   http://127.0.0.1:53683/callback
-   http://127.0.0.1:53684/callback
-   http://127.0.0.1:8976/callback
-   ```
-
-## Develop
-
-Run the tests (no KiCad or network needed):
-
-```bash
-python -m unittest discover -s tests -p "test_*.py" -v
-```
-
-Build the PCM package and repository files:
-
-```bash
-python build_pcm.py
-```
-
-The pure logic (`fields`, `grouping`, `verdict`) has no KiCad or network
-dependency. Only `kicad_env`, `ui`, and `entry` touch KiCad.
+MIT.

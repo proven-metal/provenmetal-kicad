@@ -39,19 +39,26 @@ class BomExtract:
     part_columns_missing: bool
 
 
-# Platform fallbacks for locating kicad-cli when it isn't on PATH.
+# Platform fallbacks for locating kicad-cli when it isn't on PATH and KiCad
+# didn't tell us over IPC. Best-effort; the IPC path is preferred.
 def _default_cli_locations() -> List[str]:
+    found: List[str] = []
     if sys.platform == "darwin":
-        return [
-            "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli",
-        ]
-    if os.name == "nt":
-        candidates = []
+        found.append("/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli")
+        # KiCad run from a mounted DMG or a non-standard location.
+        found += [str(p) for p in Path("/Volumes").glob("KiCad*/KiCad.app/Contents/MacOS/kicad-cli")]
+        found += [str(p) for p in Path("/Applications").glob("KiCad*/KiCad.app/Contents/MacOS/kicad-cli")]
+    elif os.name == "nt":
         for pf in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
-            if pf:
-                candidates.append(str(Path(pf) / "KiCad" / "bin" / "kicad-cli.exe"))
-        return candidates
-    return ["/usr/bin/kicad-cli", "/usr/local/bin/kicad-cli", "/opt/kicad/bin/kicad-cli"]
+            if not pf:
+                continue
+            found.append(str(Path(pf) / "KiCad" / "bin" / "kicad-cli.exe"))
+            # Versioned installs: C:\Program Files\KiCad\9.0\bin\kicad-cli.exe
+            found += [str(p) for p in Path(pf).glob("KiCad/*/bin/kicad-cli.exe")]
+    else:
+        found += ["/usr/bin/kicad-cli", "/usr/local/bin/kicad-cli", "/opt/kicad/bin/kicad-cli"]
+        found += [str(p) for p in Path("/snap/bin").glob("kicad*")]
+    return found
 
 
 def find_kicad_cli(explicit: Optional[str] = None, ipc_path: Optional[str] = None) -> str:
@@ -84,7 +91,10 @@ def find_schematic(project_dir: Path, project_name: Optional[str] = None) -> Pat
             return named
     schematics = sorted(project_dir.glob("*.kicad_sch"))
     if not schematics:
-        raise BomExportError(f"No .kicad_sch found in {project_dir}")
+        raise BomExportError(
+            f"No schematic (.kicad_sch) found in {project_dir}. "
+            "If your BOM lives in a CSV, set 'bom_csv' in settings.json to its path."
+        )
     # Prefer a schematic whose basename matches a .kicad_pro (the root sheet).
     pros = {p.stem for p in project_dir.glob("*.kicad_pro")}
     for sch in schematics:
